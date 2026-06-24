@@ -1,0 +1,18 @@
+auth:
+  mode: api_key
+  keys:
+    - "${MCP_GUARD_API_KEY}"
+
+servers:
+  filesystem:
+    command: npx
+    args:
+      - "-y"
+      - "@modelcontextprotocol/server-filesystem"
+      - "/tmp"
+
+policies:
+  max_spend_per_session: 10.00
+  rate_limit:
+    requests_per_minute: 120
+  audit_log: ./mcp-guard-audit.jsonl

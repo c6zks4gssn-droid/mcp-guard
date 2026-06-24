@@ -3,8 +3,8 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "bonanza-mcp-guard"
-version = "0.1.0"
+name = "mcp-guard"
+version = "0.1.1"
 description = "Production MCP gateway: JWT auth, rate limiting, spending controls, audit log. mcp-guard serve --config mcp-guard.yaml"
 readme = "README.md"
 license = { text = "Apache-2.0" }
@@ -25,7 +25,7 @@ dependencies = []
 
 [project.optional-dependencies]
 yaml = ["pyyaml>=6.0"]
-full = ["pyyaml>=6.0", "x402-firewall>=0.1.0"]
+full = ["pyyaml>=6.0"]
 dev  = ["pytest>=8", "pyyaml>=6.0"]
 
 [project.scripts]
