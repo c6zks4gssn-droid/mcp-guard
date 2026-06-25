@@ -1,0 +1,14 @@
+auth:
+  mode: api_key
+  keys:
+    - "dev-key-change-me"
+
+servers:
+  echo:
+    command: python3
+    args: ["-c", "import sys; print('mcp-guard example backend')"]
+
+policies:
+  max_spend_per_session: 5.00
+  rate_limit:
+    requests_per_minute: 30
