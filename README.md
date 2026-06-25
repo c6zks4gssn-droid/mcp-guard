@@ -3,8 +3,9 @@
 **Production-grade security gateway for MCP servers.**
 
 ```bash
-pip install "mcp-guard[yaml]"
-# or from source: pip install "git+https://github.com/c6zks4gssn-droid/mcp-guard.git#egg=mcp-guard[yaml]"
+pip install "bonanza-mcp-guard[yaml]"
+# CLI remains: mcp-guard scan / mcp-guard serve
+# or from source: pip install "git+https://github.com/c6zks4gssn-droid/mcp-guard.git#egg=bonanza-mcp-guard[yaml]"
 mcp-guard scan
 mcp-guard serve --config mcp-guard.yaml
 ```
@@ -25,7 +26,7 @@ A security audit in June 2026 found **1,862 internet-exposed MCP servers** — 1
 
 **1. Install**
 ```bash
-pip install "mcp-guard[yaml]"
+pip install "bonanza-mcp-guard[yaml]"
 ```
 
 **1b. Audit your machine (no server needed)**
