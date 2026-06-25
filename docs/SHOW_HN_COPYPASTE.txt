@@ -1,0 +1,37 @@
+# Show HN — copy-paste (Tuesday ~08:00–10:00 US Eastern)
+
+**URL:** https://news.ycombinator.com/submit
+
+**Title:**
+```
+Show HN: mcp-guard – auth, rate limits and spend caps in front of any MCP server
+```
+
+**Text:**
+```
+I built mcp-guard after reading that most internet-exposed MCP servers had no authentication — agents can call tools with no identity and no audit trail.
+
+mcp-guard is a stdio gateway: drop it in Claude Desktop / Cursor config, point at your real MCP server, and get API-key or JWT auth, per-agent rate limits, spend caps on wallet/x402 tools, and JSONL audit logs. Zero required deps.
+
+Try in 30 seconds:
+
+  pip install "bonanza-mcp-guard[yaml]"
+  mcp-guard scan
+  mcp-guard serve -c mcp-guard.yaml
+
+PyPI: bonanza-mcp-guard (mcp-guard was taken on PyPI). CLI is still mcp-guard.
+
+GitHub: https://github.com/c6zks4gssn-droid/mcp-guard
+PyPI: https://pypi.org/project/bonanza-mcp-guard/
+Release: https://github.com/c6zks4gssn-droid/mcp-guard/releases/tag/v0.1.1
+
+Feedback welcome: auth mode for prod? Is the GitHub Action for MCP config scan on PRs useful?
+```
+
+**First comment (post right after submit):**
+```
+Quick links:
+- README quickstart: https://github.com/c6zks4gssn-droid/mcp-guard#30-second-try
+- Example config: https://github.com/c6zks4gssn-droid/mcp-guard/blob/main/examples/minimal.yaml
+- Apache-2.0, solo maintainer @ Bonanza Labs
+```
