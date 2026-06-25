@@ -29,8 +29,9 @@ Apache-2.0.
 
 ## Where to open PR
 
-1. **Primary:** https://github.com/e2b-dev/awesome-mcp-gateways — fork, add row in README table/list following their format
-2. **Secondary:** https://github.com/punkpeye/awesome-mcp-devtools — security/gateway section if present
+**Done:** https://github.com/punkpeye/awesome-mcp-devtools/pull/203
+
+**Skip for now:** `e2b-dev/awesome-mcp-gateways` requires **200★ + 2 contributors** — mcp-guard not eligible yet.
 
 ## Steps
 
