@@ -1,0 +1,16 @@
+version: "3.9"
+
+services:
+  mcp-guard:
+    build: .
+    image: mcp-guard:latest
+    container_name: mcp-guard
+    stdin_open: true
+    volumes:
+      - ./mcp-guard.yaml:/etc/mcp-guard/config.yaml:ro
+      - ./logs:/var/log/mcp-guard
+    environment:
+      - MCP_GUARD_CONFIG=/etc/mcp-guard/config.yaml
+    # stdio mode — pipe JSON-RPC in/out
+    # For MCP clients that support Docker transport:
+    #   echo '{"jsonrpc":"2.0","method":"tools/list","id":1}' | docker compose run --rm mcp-guard

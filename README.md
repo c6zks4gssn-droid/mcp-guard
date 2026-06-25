@@ -269,7 +269,7 @@ Or copy the workflow file directly. Fails PRs with critical findings and posts a
 ## Roadmap
 
 ### v0.1.2 (next)
-- [ ] Docker image (`docker run mcp-guard`)
+- [x] Docker image (`docker run mcp-guard`)
 - [ ] Approval queue — hold tool calls above threshold for human approval
 - [ ] HTTP/SSE transport (not just stdio)
 - [ ] Tool allowlist/denylist per agent
@@ -283,6 +283,28 @@ Or copy the workflow file directly. Fails PRs with critical findings and posts a
 - [ ] Plugin system for custom policy checks
 
 **Launch:** [LAUNCH.md](LAUNCH.md)
+
+---
+
+## Docker
+
+```bash
+# Build
+DOCKER_BUILDKIT=1 docker build -t mcp-guard .
+
+# Run with config
+DOCKER_BUILDKIT=1 docker run --rm -i \
+  -v $(pwd)/mcp-guard.yaml:/etc/mcp-guard/config.yaml:ro \
+  -v $(pwd)/logs:/var/log/mcp-guard \
+  mcp-guard serve --config /etc/mcp-guard/config.yaml
+```
+
+Or with docker compose:
+```bash
+docker compose up
+```
+
+CI publishes to `ghcr.io/c6zks4gssn-droid/mcp-guard` on every tag.
 
 ---
 
