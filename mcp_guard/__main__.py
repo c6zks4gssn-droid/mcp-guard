@@ -13,6 +13,8 @@ from .config import GuardConfig
 from .proxy import MCPProxy
 from .scan import format_report, scan_all, scan_file
 from .http_transport import run_http_server
+from .approval_store import SQLiteApprovalQueue
+from .approvals_cli import cmd_approvals_list, cmd_approvals_approve, cmd_approvals_deny
 
 
 def _load_config(path: str) -> GuardConfig:
@@ -132,6 +134,19 @@ def main(argv: list[str] | None = None) -> int:
         help="Config files (default: Claude Desktop, Cursor, Windsurf paths)",
     )
 
+    approvals_p = sub.add_parser("approvals", help="Manage approval requests")
+    approvals_p.add_argument("--db", default="~/.mcp-guard/approvals.db", help="SQLite path")
+    approvals_sub = approvals_p.add_subparsers(dest="approvals_command", required=True)
+    approvals_sub.add_parser("list", help="List pending (and recently decided)")
+    ap_p = approvals_sub.add_parser("approve", help="Approve a request")
+    ap_p.add_argument("req_id", help="Approval request ID (full or short prefix)")
+    ap_p.add_argument("--by", default="admin", help="Decider name")
+    dn_p = approvals_sub.add_parser("deny", help="Deny a request")
+    dn_p.add_argument("req_id", help="Approval request ID (full or short prefix)")
+    dn_p.add_argument("--by", default="admin", help="Decider name")
+    dn_p.add_argument("--reason", default="", help="Reason for denial")
+    approvals_p.add_argument("--show-decided", action="store_true", help="Show recent decided (with list)")
+
     args = parser.parse_args(argv)
     if args.command == "serve":
         return cmd_serve(args.config, args.server)
@@ -140,6 +155,15 @@ def main(argv: list[str] | None = None) -> int:
         return run_http_server(config, host=args.host, port=args.port, server_name=args.server)
     if args.command == "scan":
         return cmd_scan(args.paths or None)
+    if args.command == "approvals":
+        db_path = os.path.expanduser(args.db)
+        os.makedirs(os.path.dirname(db_path) or ".", exist_ok=True)
+        if args.approvals_command == "list":
+            return cmd_approvals_list(db_path, show_decided=args.show_decided)
+        if args.approvals_command == "approve":
+            return cmd_approvals_approve(db_path, args.req_id, args.by)
+        if args.approvals_command == "deny":
+            return cmd_approvals_deny(db_path, args.req_id, args.by, args.reason)
     return 2
 
 

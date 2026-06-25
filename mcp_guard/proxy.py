@@ -28,6 +28,8 @@ from .auth import AuthProvider, AuthResult, NoAuth
 from .audit import GuardAuditLog, GuardAuditEntry
 from .ratelimit import RateLimiter
 from .config import GuardConfig, PolicyConfig
+from .approval import ApprovalQueue, ApprovalRequest
+from .approval_store import SQLiteApprovalQueue
 
 # Tool names that involve spending — these get extra policy checks
 SPENDING_TOOLS = {
@@ -92,12 +94,14 @@ class MCPProxy:
         policy: PolicyConfig | None = None,
         audit_log: GuardAuditLog | None = None,
         session_spend: dict | None = None,  # agent_id -> float
+        approval_queue: ApprovalQueue | None = None,  # v0.1.3
     ) -> None:
         self.auth = auth or NoAuth()
         self.rate_limiter = rate_limiter or RateLimiter()
         self.policy = policy or PolicyConfig()
         self.audit_log = audit_log or GuardAuditLog()
         self._session_spend: dict[str, float] = session_spend or {}
+        self.approval_queue = approval_queue
 
     @classmethod
     def from_config(cls, config: GuardConfig) -> "MCPProxy":
@@ -243,6 +247,43 @@ class MCPProxy:
                     amount_usd=amount_usd,
                     block_reason=block,
                     error_response=_rpc_error(msg.id, -32002, f"Payment blocked: {block}"),
+                )
+            # v0.1.3: Hold for human approval if above threshold
+            if (
+                self.approval_queue
+                and self.policy.require_approval_above is not None
+                and amount_usd >= self.policy.require_approval_above
+            ):
+                approval_req = self.approval_queue.request(
+                    agent_id=agent_id,
+                    tool_name=tool_name,
+                    amount_usd=amount_usd,
+                    session_id=session_id,
+                )
+                entry = GuardAuditEntry(
+                    decision="pending_approval",
+                    agent_id=agent_id,
+                    method=msg.method,
+                    tool_name=tool_name,
+                    session_id=session_id,
+                    amount_usd=amount_usd,
+                    reason=f"held for approval: {approval_req.id}",
+                    latency_ms=(time.monotonic() - t0) * 1000,
+                )
+                self.audit_log.record(entry)
+                return InterceptResult(
+                    allowed=False,
+                    agent_id=agent_id,
+                    session_id=session_id,
+                    tool_name=tool_name,
+                    amount_usd=amount_usd,
+                    block_reason="held for human approval",
+                    error_response=_rpc_error(
+                        msg.id, -32004,
+                        f"Held for approval (id={approval_req.id[:8]}). "
+                        "Run: mcp-guard approvals approve " + approval_req.id[:8],
+                        {"approval_id": approval_req.id, "amount_usd": amount_usd},
+                    ),
                 )
             # Record spend
             spend_key = f"{agent_id}:{session_id}"

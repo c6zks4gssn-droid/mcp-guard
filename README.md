@@ -272,7 +272,7 @@ Or copy the workflow file directly. Fails PRs with critical findings and posts a
 - [x] Docker image (`docker run mcp-guard`)
 - [x] HTTP/SSE transport (`mcp-guard serve-http`)
 - [x] Prometheus metrics endpoint (`GET /metrics`)
-- [ ] Approval queue — hold tool calls above threshold for human approval
+- [x] Approval queue — hold tool calls above threshold for human approval
 - [ ] HTTP/SSE transport (not just stdio)
 - [ ] Tool allowlist/denylist per agent
 - [ ] Prometheus metrics endpoint
@@ -285,6 +285,30 @@ Or copy the workflow file directly. Fails PRs with critical findings and posts a
 - [ ] Plugin system for custom policy checks
 
 **Launch:** [LAUNCH.md](LAUNCH.md)
+
+---
+
+## Approval queue
+
+When a spending tool call exceeds `require_approval_above`, the proxy holds it and returns error -32004 with the approval_id. A human reviews and approves/denies via the CLI:
+
+```yaml
+policies:
+  require_approval_above: 5.00
+```
+
+```bash
+# List pending
+mcp-guard approvals list --db ~/.mcp-guard/approvals.db
+
+# Approve (short ID works)
+mcp-guard approvals approve abc12345 --by admin
+
+# Deny with reason
+mcp-guard approvals deny abc12345 --by admin --reason "vendor untrusted"
+```
+
+Pending requests are persisted in SQLite — survive restarts.
 
 ---
 
