@@ -1,0 +1,146 @@
+name: MCP Config Scan
+
+on:
+  pull_request:
+    paths:
+      - '**/claude_desktop_config.json'
+      - '**/mcp.json'
+      - '**/mcp_config.json'
+      - '**/mcp_servers.json'
+      - '**/*mcp*.json'
+      - '**/*mcp*.yaml'
+      - '**/*mcp*.yml'
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install mcp-guard
+        run: pip install bonanza-mcp-guard
+
+      - name: Find and scan MCP config files in PR
+        id: scan
+        run: |
+          python3 << 'PYEOF'
+          import json
+          import os
+          import subprocess
+          import sys
+
+          # Get list of changed files in the PR
+          result = subprocess.run(
+              ["git", "diff", "--name-only", "--diff-filter=ACMR",
+               f"origin/{os.environ['GITHUB_BASE_REF']}...HEAD"],
+              capture_output=True, text=True
+          )
+          changed = [f.strip() for f in result.stdout.splitlines() if f.strip()]
+
+          # Filter for likely MCP config files
+          mcp_patterns = [
+              "claude_desktop_config.json",
+              "mcp.json",
+              "mcp_config.json",
+              "mcp_servers.json",
+          ]
+
+          def is_mcp_config(path):
+              lower = path.lower()
+              if any(lower.endswith(p) for p in mcp_patterns):
+                  return True
+              if "mcp" in lower and lower.endswith((".json", ".yaml", ".yml")):
+                  return True
+              return False
+
+          targets = [f for f in changed if is_mcp_config(f)]
+
+          if not targets:
+              print("No MCP config files found in this PR.")
+              with open(os.environ["GITHUB_OUTPUT"], "a") as gh:
+                  gh.write("found=false\n")
+              sys.exit(0)
+
+          print(f"Found {len(targets)} MCP config file(s): {', '.join(targets)}")
+          with open(os.environ["GITHUB_OUTPUT"], "a") as gh:
+              gh.write("found=true\n")
+              gh.write(f"files={','.join(targets)}\n")
+
+          # Run mcp-guard scan on each file
+          from mcp_guard.scan import scan_file, format_report
+
+          reports = [scan_file(f) for f in targets]
+          output = format_report(reports)
+          print(output)
+
+          # Save for comment
+          with open("/tmp/scan_result.md", "w") as f:
+              f.write("## 🔍 MCP Config Scan\n\n")
+              f.write("```text\n")
+              f.write(output)
+              f.write("\n```\n")
+              f.write("\n---\n")
+              f.write("Powered by [mcp-guard](https://github.com/c6zks4gssn-droid/mcp-guard) — ")
+              f.write("`pip install bonanza-mcp-guard`\n")
+
+          # Exit non-zero if critical findings
+          critical = sum(
+              1 for r in reports
+              for finding in r.findings
+              if finding.severity == "critical"
+          )
+          if critical > 0:
+              print(f"\n❌ {critical} critical finding(s) — failing check")
+              sys.exit(1)
+          else:
+              print("\n✅ No critical findings")
+          PYEOF
+
+      - name: Comment on PR
+        if: always() && steps.scan.outputs.found == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let body;
+            try {
+              body = fs.readFileSync('/tmp/scan_result.md', 'utf8');
+            } catch {
+              core.info('No scan result to post');
+              return;
+            }
+
+            // Find existing mcp-guard comment
+            const { data: comments } = await github.rest.issues.listComments({
+              ...context.repo,
+              issue_number: context.issue.number,
+            });
+
+            const existing = comments.find(c =>
+              c.user.login === 'github-actions[bot]' &&
+              c.body.includes('🔍 MCP Config Scan')
+            );
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                ...context.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                ...context.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }

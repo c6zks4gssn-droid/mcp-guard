@@ -201,10 +201,28 @@ proxy = MCPProxy.from_config(config)
 
 ---
 
+## GitHub Action — scan MCP configs on PRs
+
+Automatically scan MCP config files in pull requests for security issues (missing auth, exposed remote URLs, no guard wrapper).
+
+```yaml
+# .github/workflows/mcp-scan.yml — already included in this repo
+# Triggers on: **/claude_desktop_config.json, **/mcp.json, **/*mcp*.json/yaml
+```
+
+Add it to your repo:
+```yaml
+uses: c6zks4gssn-droid/mcp-guard/.github/workflows/mcp-scan.yml@main
+```
+
+Or copy the workflow file directly. Fails PRs with critical findings and posts a comment with the full report.
+
+---
+
 ## Roadmap
 
-- GitHub Action: MCP config scan on PRs
 - Docker image · approval queue
+- Standalone GitHub Action (reusable workflow)
 
 **Launch:** [LAUNCH.md](LAUNCH.md)
 

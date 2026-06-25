@@ -1,0 +1,20 @@
+# Example MCP config for testing the scan action
+# This file simulates a vulnerable Claude Desktop config
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/"]
+    },
+    "remote-no-auth": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-fetch"],
+      "url": "https://api.example.com/mcp",
+      "env": {}
+    },
+    "guarded": {
+      "command": "mcp-guard",
+      "args": ["serve", "--config", "mcp-guard.yaml"]
+    }
+  }
+}
