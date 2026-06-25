@@ -39,9 +39,13 @@ from typing import Any, Literal
 
 @dataclass
 class AuthConfig:
-    mode: Literal["none", "api_key", "jwt"] = "none"
+    mode: Literal["none", "api_key", "jwt", "oauth2"] = "none"
     keys: list[str] = field(default_factory=list)
     jwt_secret: str = ""
+    # OAuth2 (v0.1.4)
+    client_id: str = "mcp-agent"
+    client_secret: str = ""
+    issuer: str = "mcp-guard"
 
     @classmethod
     def from_dict(cls, d: dict) -> "AuthConfig":
@@ -49,6 +53,9 @@ class AuthConfig:
             mode=d.get("mode", "none"),
             keys=[_expand(k) for k in d.get("keys", [])],
             jwt_secret=_expand(d.get("jwt_secret", "")),
+            client_id=d.get("client_id", "mcp-agent"),
+            client_secret=_expand(d.get("client_secret", "")),
+            issuer=d.get("issuer", "mcp-guard"),
         )
 
 
@@ -118,6 +125,7 @@ class GuardConfig:
     auth: AuthConfig = field(default_factory=AuthConfig)
     servers: list[ServerConfig] = field(default_factory=list)
     policies: PolicyConfig = field(default_factory=PolicyConfig)
+    routes: list[dict] = field(default_factory=list)  # v0.1.4 — routing rules
 
     @classmethod
     def from_dict(cls, d: dict) -> "GuardConfig":
@@ -129,6 +137,7 @@ class GuardConfig:
             auth=AuthConfig.from_dict(d.get("auth", {})),
             servers=servers,
             policies=PolicyConfig.from_dict(d.get("policies", {})),
+            routes=list(d.get("routes", [])),
         )
 
     @classmethod
