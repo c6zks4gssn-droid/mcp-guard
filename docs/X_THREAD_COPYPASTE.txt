@@ -1,0 +1,32 @@
+# X thread — copy-paste (post as thread or single long post)
+
+**Tweet 1 (hook)**
+Most MCP setups I see: no auth on the tool path, no spend ceiling, no audit trail.
+
+I shipped a small stdio gateway that sits in front of any MCP server — Claude Desktop / Cursor / custom agents.
+
+pip install "bonanza-mcp-guard[yaml]"
+
+**Tweet 2 (demo)**
+Two commands:
+
+mcp-guard scan   → audit local MCP client configs
+mcp-guard serve  → proxy with API keys/JWT, rate limits, spend caps on wallet/x402 tools
+
+Zero required dependencies. GIF on GitHub README.
+
+**Tweet 3 (differentiator)**
+Scanners like mcp-scan (great for supply chain) ≠ runtime gateway.
+
+mcp-guard is for: "something is actually calling tools — who, how often, how much $"
+
+JSONL audit log per tool call.
+
+**Tweet 4 (links)**
+GitHub: https://github.com/c6zks4gssn-droid/mcp-guard
+PyPI: https://pypi.org/project/bonanza-mcp-guard/
+Apache-2.0 · Bonanza Labs
+
+Feedback welcome — especially: GitHub Action for MCP config scan on PRs, worth it?
+
+**Optional image:** attach docs/demo.gif from repo

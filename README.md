@@ -19,6 +19,8 @@ mcp-guard serve --config mcp-guard.yaml
 
 Sits in front of any MCP server over stdio. Zero required dependencies.
 
+Complements static scanners like [mcp-scan](https://github.com/invariantlabs-ai/mcp-scan) with a **runtime stdio gateway** (auth, limits, audit).
+
 ---
 
 ## The problem

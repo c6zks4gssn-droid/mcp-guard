@@ -1,0 +1,26 @@
+## Show HN on Reddit r/mcp
+
+**Title:** Lightweight stdio MCP gateway — auth, rate limits, spend caps (open source)
+
+**Body:**
+
+I built mcp-guard for the case where MCP tools are already wired in Claude Desktop / Cursor but there's no auth, rate limit, or spend ceiling on the path to the real server.
+
+It's a stdio proxy: clients talk to `mcp-guard`, it forwards to your MCP server.
+
+```bash
+pip install "bonanza-mcp-guard[yaml]"
+mcp-guard scan          # check local MCP configs
+mcp-guard serve -c mcp-guard.yaml
+```
+
+Features: API keys or JWT, per-agent rate limits, caps on wallet/x402 payment tools, JSONL audit log. Zero required deps.
+
+Not trying to replace mcp-scan (supply-chain scanning) — this is runtime gateway + local config audit.
+
+GitHub: https://github.com/c6zks4gssn-droid/mcp-guard  
+PyPI: bonanza-mcp-guard (PyPI name collision; CLI is `mcp-guard`)
+
+Would appreciate feedback on whether a GitHub Action for MCP config changes on PRs is useful — there's a workflow in the repo already.
+
+Apache-2.0.
