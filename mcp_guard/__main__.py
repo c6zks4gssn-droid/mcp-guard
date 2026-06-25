@@ -12,6 +12,7 @@ import uuid
 from .config import GuardConfig
 from .proxy import MCPProxy
 from .scan import format_report, scan_all, scan_file
+from .http_transport import run_http_server
 
 
 def _load_config(path: str) -> GuardConfig:
@@ -118,6 +119,12 @@ def main(argv: list[str] | None = None) -> int:
         help="Named server from config (default: first)",
     )
 
+    http_p = sub.add_parser("serve-http", help="Run HTTP/SSE gateway (remote agents)")
+    http_p.add_argument("--config", "-c", required=True, help="Path to mcp-guard.yaml")
+    http_p.add_argument("--host", default="0.0.0.0", help="Bind address (default: 0.0.0.0)")
+    http_p.add_argument("--port", "-p", type=int, default=8080, help="Port (default: 8080)")
+    http_p.add_argument("--server", "-s", default=None, help="Named server from config")
+
     scan_p = sub.add_parser("scan", help="Audit local MCP client configs")
     scan_p.add_argument(
         "paths",
@@ -128,6 +135,9 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if args.command == "serve":
         return cmd_serve(args.config, args.server)
+    if args.command == "serve-http":
+        config = _load_config(args.config)
+        return run_http_server(config, host=args.host, port=args.port, server_name=args.server)
     if args.command == "scan":
         return cmd_scan(args.paths or None)
     return 2

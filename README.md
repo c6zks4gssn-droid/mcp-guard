@@ -270,6 +270,8 @@ Or copy the workflow file directly. Fails PRs with critical findings and posts a
 
 ### v0.1.2 (next)
 - [x] Docker image (`docker run mcp-guard`)
+- [x] HTTP/SSE transport (`mcp-guard serve-http`)
+- [x] Prometheus metrics endpoint (`GET /metrics`)
 - [ ] Approval queue — hold tool calls above threshold for human approval
 - [ ] HTTP/SSE transport (not just stdio)
 - [ ] Tool allowlist/denylist per agent
@@ -283,6 +285,33 @@ Or copy the workflow file directly. Fails PRs with critical findings and posts a
 - [ ] Plugin system for custom policy checks
 
 **Launch:** [LAUNCH.md](LAUNCH.md)
+
+---
+
+## HTTP/SSE transport
+
+For remote agents that connect over HTTP instead of stdio:
+
+```bash
+mcp-guard serve-http --config mcp-guard.yaml --port 8080
+```
+
+Endpoints:
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/rpc` | JSON-RPC request → response |
+| `GET` | `/health` | Health check |
+| `GET` | `/metrics` | Prometheus metrics |
+
+Auth over HTTP: `X-API-Key` header or `Authorization: Bearer` header.
+
+```bash
+curl -X POST http://localhost:8080/rpc \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: sk-agent-1" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
+```
 
 ---
 

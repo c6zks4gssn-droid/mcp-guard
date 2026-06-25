@@ -22,3 +22,6 @@ VOLUME ["/etc/mcp-guard"]
 # stdio gateway — reads from stdin, writes to stdout
 ENTRYPOINT ["mcp-guard"]
 CMD ["serve", "--config", "/etc/mcp-guard/config.yaml"]
+
+# For HTTP mode: docker run -p 8080:8080 mcp-guard serve-http -c /etc/mcp-guard/config.yaml -p 8080
+EXPOSE 8080
