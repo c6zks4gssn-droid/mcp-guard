@@ -73,6 +73,8 @@ class PolicyConfig:
     allow_vendors: list[str] | None = None
     audit_log: str | None = None
     rate_limit: RateLimitConfig = field(default_factory=RateLimitConfig)
+    tool_allowlist: list[str] = field(default_factory=list)   # v0.1.2
+    tool_denylist: list[str] = field(default_factory=list)    # v0.1.2
 
     @classmethod
     def from_dict(cls, d: dict) -> "PolicyConfig":
@@ -85,6 +87,8 @@ class PolicyConfig:
             allow_vendors=list(d["allow_vendors"]) if "allow_vendors" in d else None,
             audit_log=d.get("audit_log"),
             rate_limit=RateLimitConfig.from_dict(d.get("rate_limit", {})),
+            tool_allowlist=list(d.get("tool_allowlist", [])),
+            tool_denylist=list(d.get("tool_denylist", [])),
         )
 
 

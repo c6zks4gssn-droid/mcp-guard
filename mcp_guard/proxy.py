@@ -175,7 +175,49 @@ class MCPProxy:
                 ),
             )
 
-        # --- 3. Spending policy (only for spending tool calls) ---
+        # --- 3. Tool allowlist/denylist (v0.1.2) ---
+        tool_name = _tool_name(msg)
+        if tool_name and msg.method == "tools/call":
+            if self.policy.tool_denylist and tool_name in self.policy.tool_denylist:
+                entry = GuardAuditEntry(
+                    decision="blocked",
+                    agent_id=agent_id,
+                    method=msg.method,
+                    tool_name=tool_name,
+                    session_id=session_id,
+                    reason=f"tool '{tool_name}' is on denylist",
+                    latency_ms=(time.monotonic() - t0) * 1000,
+                )
+                self.audit_log.record(entry)
+                return InterceptResult(
+                    allowed=False,
+                    agent_id=agent_id,
+                    session_id=session_id,
+                    tool_name=tool_name,
+                    block_reason=f"tool '{tool_name}' is on denylist",
+                    error_response=_rpc_error(msg.id, -32003, f"Tool blocked: '{tool_name}' is on denylist"),
+                )
+            if self.policy.tool_allowlist and tool_name not in self.policy.tool_allowlist:
+                entry = GuardAuditEntry(
+                    decision="blocked",
+                    agent_id=agent_id,
+                    method=msg.method,
+                    tool_name=tool_name,
+                    session_id=session_id,
+                    reason=f"tool '{tool_name}' not on allowlist",
+                    latency_ms=(time.monotonic() - t0) * 1000,
+                )
+                self.audit_log.record(entry)
+                return InterceptResult(
+                    allowed=False,
+                    agent_id=agent_id,
+                    session_id=session_id,
+                    tool_name=tool_name,
+                    block_reason=f"tool '{tool_name}' not on allowlist",
+                    error_response=_rpc_error(msg.id, -32003, f"Tool blocked: '{tool_name}' not on allowlist"),
+                )
+
+        # --- 4. Spending policy (only for spending tool calls) ---
         tool_name = _tool_name(msg)
         amount_usd = 0.0
         if tool_name in SPENDING_TOOLS and msg.method == "tools/call":
@@ -208,7 +250,7 @@ class MCPProxy:
                 self._session_spend.get(spend_key, 0.0) + amount_usd
             )
 
-        # --- 4. Allow ---
+        # --- 5. Allow ---
         entry = GuardAuditEntry(
             decision="allowed",
             agent_id=agent_id,

@@ -21,11 +21,22 @@ Sits in front of any MCP server over stdio. Zero required dependencies.
 
 Complements static scanners like [mcp-scan](https://github.com/invariantlabs-ai/mcp-scan) with a **runtime stdio gateway** (auth, limits, audit).
 
+## Why mcp-guard?
+
+| Without mcp-guard | With mcp-guard |
+|---|---|
+| Any agent calls any tool | Agent must authenticate (API key / JWT) |
+| No spend ceiling | Per-session spend caps, per-hour rate limits |
+| No audit trail | Every request logged to JSONL |
+| Server exposed directly | Gateway wraps server — zero code changes |
+
+Complements static scanners like [mcp-scan](https://github.com/invariantlabs-ai/mcp-scan) with a **runtime stdio gateway** (auth, limits, audit).
+
 ---
 
 ## The problem
 
-Security research in 2026 reported **1,800+ internet-exposed MCP endpoints** with **no authentication** on verified samples. Any MCP client can invoke tools with no identity, no spend ceiling, and no audit trail.
+Security research in 2026 reported **1,800+ internet-exposed MCP endpoints** with **no authentication**. Any MCP client can invoke tools with no identity, no spend ceiling, and no audit trail.
 
 `mcp-guard` adds a gateway layer — Claude Desktop, Cursor, Windsurf, or custom agents talk to `mcp-guard`; it talks to your real MCP server.
 
@@ -116,6 +127,40 @@ policies:
   }
 }
 ```
+
+---
+
+## Architecture
+
+```
+MCP Client (Claude Desktop / Cursor / custom agent)
+    │
+    ▼  JSON-RPC over stdio
+┌──────────────┐
+│  mcp-guard   │  auth → rate limit → spend check → audit
+└──────────────┘
+    │
+    ▼  forwards allowed requests
+Your MCP Server (filesystem, wallet, fetch, anything)
+```
+
+**1,168 lines of Python. Zero required dependencies.**
+
+---
+
+## Config reference
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `auth.mode` | `none` \| `api_key` \| `jwt` | `none` | Authentication mode |
+| `auth.keys` | `list[str]` | `[]` | Valid API keys (mode=api_key) |
+| `auth.jwt_secret` | `str` | — | HMAC-SHA256 secret (mode=jwt) |
+| `policies.rate_limit.requests_per_minute` | `int` | `∞` | Max requests per agent per minute |
+| `policies.rate_limit.spend_per_hour_usd` | `float` | `∞` | Max spend per agent per hour |
+| `policies.max_spend_per_session` | `float` | `∞` | Session spend cap |
+| `policies.require_approval_above` | `float` | `∞` | Threshold for manual approval |
+| `policies.audit_log` | `str` | — | JSONL audit log path |
+| `servers` | `map` | `{}` | Backend MCP servers to proxy to |
 
 ---
 
@@ -223,10 +268,47 @@ Or copy the workflow file directly. Fails PRs with critical findings and posts a
 
 ## Roadmap
 
-- Docker image · approval queue
-- Standalone GitHub Action (reusable workflow)
+### v0.1.2 (next)
+- [ ] Docker image (`docker run mcp-guard`)
+- [ ] Approval queue — hold tool calls above threshold for human approval
+- [ ] HTTP/SSE transport (not just stdio)
+- [ ] Tool allowlist/denylist per agent
+- [ ] Prometheus metrics endpoint
+
+### Future
+- [ ] Standalone GitHub Action (reusable workflow)
+- [ ] Web dashboard for audit log visualization
+- [ ] Multi-server routing (one gateway, many backends)
+- [ ] OAuth2 provider for agent-to-agent auth
+- [ ] Plugin system for custom policy checks
 
 **Launch:** [LAUNCH.md](LAUNCH.md)
+
+---
+
+## Contributing
+
+PRs welcome. The codebase is 1,168 lines across 8 modules — small enough to hold in your head.
+
+```bash
+git clone https://github.com/c6zks4gssn-droid/mcp-guard
+cd mcp-guard
+pip install -e ".[yaml,dev]"
+pytest
+```
+
+### Project structure
+
+```
+mcp_guard/
+├── __main__.py    # CLI entry point (serve, scan)
+├── config.py      # GuardConfig + YAML/JSON loader
+├── auth.py        # API key + JWT providers
+├── proxy.py       # MCPProxy — the intercept engine
+├── ratelimit.py   # Per-agent rate limiting
+├── audit.py       # JSONL audit logger
+└── scan.py        # Local config scanner
+```
 
 ---
 
