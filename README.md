@@ -268,20 +268,19 @@ Or copy the workflow file directly. Fails PRs with critical findings and posts a
 
 ## Roadmap
 
-### v0.1.2 (next)
+### v0.1.4 (current)
 - [x] Docker image (`docker run mcp-guard`)
 - [x] HTTP/SSE transport (`mcp-guard serve-http`)
 - [x] Prometheus metrics endpoint (`GET /metrics`)
 - [x] Approval queue — hold tool calls above threshold for human approval
-- [ ] HTTP/SSE transport (not just stdio)
-- [ ] Tool allowlist/denylist per agent
-- [ ] Prometheus metrics endpoint
+- [x] Multi-server routing (one gateway, many backends)
+- [x] OAuth2 provider for agent-to-agent auth (PKCE + Device flow)
+- [x] SQLite persistent approval queue (CLI: list/approve/deny)
 
 ### Future
+- [ ] Tool allowlist/denylist per agent
 - [ ] Standalone GitHub Action (reusable workflow)
 - [ ] Web dashboard for audit log visualization
-- [ ] Multi-server routing (one gateway, many backends)
-- [ ] OAuth2 provider for agent-to-agent auth
 - [ ] Plugin system for custom policy checks
 
 **Launch:** [LAUNCH.md](LAUNCH.md)
@@ -360,6 +359,82 @@ docker compose up
 CI publishes to `ghcr.io/c6zks4gssn-droid/mcp-guard` on every tag.
 
 ---
+
+## Multi-server routing
+
+One mcp-guard gateway can sit in front of multiple MCP backends. Clients connect once; the router fans out requests to the right backend based on tool name, method prefix, or explicit override.
+
+```yaml
+servers:
+  bonanza:
+    command: bonanza-mcp serve
+  filesystem:
+    command: npx server-filesystem /data
+  search:
+    command: python -m search_server
+
+routes:
+  - mode: tool
+    tool_name: wallet_pay
+    target: bonanza
+  - mode: tool
+    tool_name: read_file
+    target: filesystem
+  - mode: method
+    method_prefix: notifications/
+    target: filesystem
+  - mode: default
+    target: search
+```
+
+Or override per request:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "tools/call",
+  "params": {
+    "_meta": { "target_server": "bonanza" },
+    "name": "wallet_pay",
+    "arguments": {"amount": 5}
+  }
+}
+```
+
+If no rule matches and `target_server` is unknown, the gateway returns `-32005 no_route_matched`.
+
+## OAuth2
+
+Agents can authenticate with OAuth2 instead of static API keys. Two flows:
+
+**Authorization Code + PKCE** (for interactive agents):
+
+```yaml
+auth:
+  mode: oauth2
+  client_id: mcp-agent
+```
+
+```python
+from mcp_guard.oauth import OAuth2Provider, generate_pkce_pair
+
+oauth = OAuth2Provider()
+verifier, challenge = generate_pkce_pair()
+ac = oauth.authorize("mcp-agent", "agent-1", challenge, "S256")
+tr = oauth.token_exchange("authorization_code", ac.code, verifier, "mcp-agent")
+# Use tr.access_token in Authorization: Bearer ...
+```
+
+**Device Authorization Grant** (for headless agents):
+
+```python
+device = oauth.device_authorize("mcp-agent")
+print(f"Visit {device.verification_uri} and enter code {device.user_code}")
+# User approves via POST /oauth/device/approve
+# Agent polls: oauth.device_poll(device.device_code, "mcp-agent")
+```
+
+Refresh tokens rotate, introspection checks validity, revocation kills tokens. All in-memory by default — plug a Redis/SQLite backend for multi-replica deployments.
 
 ## Contributing
 

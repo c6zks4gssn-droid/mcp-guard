@@ -166,6 +166,18 @@ def build_auth_provider(config) -> AuthProvider:
         return ApiKeyAuth(config.keys)
     elif mode == "jwt":
         return JWTAuth(config.jwt_secret)
+    elif mode == "oauth2":
+        from .oauth import OAuth2Auth
+        # config may carry an OAuth2Provider instance, or we build a fresh one
+        oauth = getattr(config, "_oauth_provider", None)
+        if oauth is None:
+            from .oauth import OAuth2Provider
+            oauth = OAuth2Provider(
+                client_id=getattr(config, "client_id", "mcp-agent"),
+                client_secret=getattr(config, "client_secret", ""),
+                issuer=getattr(config, "issuer", "mcp-guard"),
+            )
+        return OAuth2Auth(oauth)
     else:
         return NoAuth()
 

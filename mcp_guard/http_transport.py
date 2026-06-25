@@ -26,6 +26,7 @@ from typing import Any
 
 from .config import GuardConfig
 from .proxy import MCPProxy, InterceptResult
+from .router import MCPRouter, RouteConfig, RouteRule
 
 
 class GuardHTTPHandler(BaseHTTPRequestHandler):
@@ -33,17 +34,29 @@ class GuardHTTPHandler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:
         if self.path == "/health":
-            self._json(200, {"status": "ok", "version": "0.1.2"})
+            self._json(200, {"status": "ok", "version": "0.1.4"})
         elif self.path == "/metrics":
             self._prometheus()
+        elif self.path.startswith("/oauth/authorize"):
+            self._oauth_authorize()
         else:
             self._json(404, {"error": "not found"})
 
     def do_POST(self) -> None:
-        if self.path != "/rpc":
+        if self.path == "/rpc":
+            self._handle_rpc()
+        elif self.path == "/oauth/token":
+            self._oauth_token()
+        elif self.path.startswith("/oauth/device/approve"):
+            self._oauth_device_approve()
+        elif self.path == "/oauth/introspect":
+            self._oauth_introspect()
+        elif self.path == "/oauth/revoke":
+            self._oauth_revoke()
+        else:
             self._json(404, {"error": "not found"})
-            return
 
+    def _handle_rpc(self) -> None:
         length = int(self.headers.get("Content-Length", 0))
         body = self.rfile.read(length) if length else b"{}"
 
@@ -73,6 +86,124 @@ class GuardHTTPHandler(BaseHTTPRequestHandler):
         # Forward to backend MCP server
         response = self.server._forward_to_backend(raw, self.server)
         self._json(200, response)
+
+    def _oauth_authorize(self) -> None:
+        """GET /oauth/authorize?response_type=code&client_id=...&...&code_challenge=..."""
+        oauth = getattr(self.server, "oauth", None)
+        if oauth is None:
+            self._json(503, {"error": "oauth_not_enabled"})
+            return
+        from urllib.parse import urlparse, parse_qs
+        q = parse_qs(urlparse(self.path).query)
+        client_id = q.get("client_id", [""])[0]
+        agent_id = q.get("agent_id", ["anonymous"])[0]
+        challenge = q.get("code_challenge", [""])[0]
+        method = q.get("code_challenge_method", ["S256"])[0]
+        scope = q.get("scope", ["mcp"])[0]
+        ac = oauth.authorize(client_id, agent_id, challenge, method, scope=scope)
+        if ac is None:
+            self._json(400, {"error": "invalid_request"})
+            return
+        self._json(200, {"code": ac.code, "expires_in": oauth.code_ttl})
+
+    def _oauth_token(self) -> None:
+        """POST /oauth/token — grant_type=authorization_code | refresh_token."""
+        oauth = getattr(self.server, "oauth", None)
+        if oauth is None:
+            self._json(503, {"error": "oauth_not_enabled"})
+            return
+        length = int(self.headers.get("Content-Length", 0))
+        body = self.rfile.read(length) if length else b""
+        try:
+            data = json.loads(body) if body else {}
+        except json.JSONDecodeError:
+            data = {}
+        # Allow form-encoded too
+        if not data:
+            from urllib.parse import parse_qs
+            data = {k: v[0] for k, v in parse_qs(body.decode()).items()}
+
+        grant_type = data.get("grant_type", "")
+        response = oauth.token_exchange(
+            grant_type=grant_type,
+            code=data.get("code", ""),
+            code_verifier=data.get("code_verifier", ""),
+            refresh_token=data.get("refresh_token", ""),
+            client_id=data.get("client_id", ""),
+        )
+        if response is None:
+            self._json(400, {"error": "invalid_grant"})
+            return
+        # Device flow errors come back as {"error": "..."}
+        if isinstance(response, dict) and "error" in response:
+            self._json(400, response)
+            return
+        self._json(200, {
+            "access_token": response.access_token,
+            "token_type": response.token_type,
+            "expires_in": response.expires_in,
+            "refresh_token": response.refresh_token,
+            "scope": response.scope,
+        })
+
+    def _oauth_device_approve(self) -> None:
+        """POST /oauth/device/approve  body={"user_code": "...", "agent_id": "..."}."""
+        oauth = getattr(self.server, "oauth", None)
+        if oauth is None:
+            self._json(503, {"error": "oauth_not_enabled"})
+            return
+        length = int(self.headers.get("Content-Length", 0))
+        body = self.rfile.read(length) if length else b"{}"
+        try:
+            data = json.loads(body)
+        except json.JSONDecodeError:
+            self._json(400, {"error": "invalid_json"})
+            return
+        ok = oauth.device_approve(
+            data.get("user_code", ""), data.get("agent_id", "")
+        )
+        self._json(200 if ok else 404, {"approved": ok})
+
+    def _oauth_introspect(self) -> None:
+        oauth = getattr(self.server, "oauth", None)
+        if oauth is None:
+            self._json(503, {"error": "oauth_not_enabled"})
+            return
+        length = int(self.headers.get("Content-Length", 0))
+        body = self.rfile.read(length) if length else b""
+        from urllib.parse import parse_qs
+        data = {k: v[0] for k, v in parse_qs(body.decode()).items()}
+        info = oauth.introspect(data.get("token", ""))
+        if info is None:
+            self._json(200, {"active": False})
+            return
+        self._json(200, info)
+
+    def _oauth_revoke(self) -> None:
+        oauth = getattr(self.server, "oauth", None)
+        if oauth is None:
+            self._json(503, {"error": "oauth_not_enabled"})
+            return
+        length = int(self.headers.get("Content-Length", 0))
+        body = self.rfile.read(length) if length else b""
+        from urllib.parse import parse_qs
+        data = {k: v[0] for k, v in parse_qs(body.decode()).items()}
+        ok = oauth.revoke(data.get("token", ""))
+        self._json(200, {"revoked": ok})
+
+    def do_POST(self) -> None:
+        if self.path == "/rpc":
+            self._handle_rpc()
+        elif self.path == "/oauth/token":
+            self._oauth_token()
+        elif self.path.startswith("/oauth/device/approve"):
+            self._oauth_device_approve()
+        elif self.path == "/oauth/introspect":
+            self._oauth_introspect()
+        elif self.path == "/oauth/revoke":
+            self._oauth_revoke()
+        else:
+            self._json(404, {"error": "not found"})
 
     def _json(self, code: int, data: dict) -> None:
         body = json.dumps(data).encode()
@@ -106,29 +237,77 @@ class GuardHTTPHandler(BaseHTTPRequestHandler):
 
 
 class GuardHTTPServer(HTTPServer):
-    """HTTP server with mcp-guard proxy attached."""
+    """HTTP server with mcp-guard proxy + router attached."""
 
     proxy: MCPProxy
-    backend_command: list[str]
-    backend_env: dict[str, str]
+    router: MCPRouter | None  # v0.1.4 — None when only one server
+    oauth: Any  # v0.1.4 — OAuth2Provider | None
 
-    def __init__(self, addr: tuple[str, int], proxy: MCPProxy, backend: list[str], env: dict) -> None:
+    def __init__(
+        self,
+        addr: tuple[str, int],
+        proxy: MCPProxy,
+        router: MCPRouter | None = None,
+        oauth: Any = None,
+        # Backwards-compat shim: legacy callers pass (backend_command, backend_env)
+        _legacy_backend: Any = None,
+        _legacy_env: Any = None,
+    ) -> None:
         super().__init__(addr, GuardHTTPHandler)
         self.proxy = proxy
-        self.backend_command = backend
-        self.backend_env = env
+        # If positional 3rd arg is a list/tuple, treat as legacy backend_command
+        if isinstance(router, (list, tuple)) and not isinstance(router, MCPRouter):
+            self._legacy_backend = list(router)
+            self._legacy_env = _legacy_env if isinstance(_legacy_env, dict) else {}
+            self.router = None
+        else:
+            self._legacy_backend = None
+            self._legacy_env = {}
+            self.router = router
+        self.oauth = oauth
 
     def _forward_to_backend(self, raw: dict, server: "GuardHTTPServer") -> dict:
-        """Forward a JSON-RPC message to the backend MCP server and return response."""
+        """Forward a JSON-RPC message to the selected backend MCP server and return response."""
+        import os
         import subprocess as sp
+
+        # Pick backend — either via router or fall back to legacy single backend
+        if server.router:
+            chosen = server.router.route(raw)
+            if chosen is None:
+                return {
+                    "jsonrpc": "2.0",
+                    "id": raw.get("id"),
+                    "error": {
+                        "code": -32005,
+                        "message": "No route matched for this request",
+                    },
+                }
+            backend_cmd = [chosen.command, *chosen.args]
+            backend_env = chosen.env
+        elif getattr(server, "_legacy_backend", None):
+            chosen = None
+            backend_cmd = server._legacy_backend
+            backend_env = server._legacy_env or {}
+        else:
+            chosen = None
+            backend_cmd = []
+            backend_env = {}
+
+        if not backend_cmd:
+            return {
+                "jsonrpc": "2.0",
+                "id": raw.get("id"),
+                "error": {"code": -32603, "message": "No backend configured"},
+            }
 
         try:
             proc = sp.Popen(
-                server.backend_command,
+                backend_cmd,
                 stdin=sp.PIPE,
                 stdout=sp.PIPE,
                 stderr=sp.PIPE,
-                env={**__import__("os").environ, **server.backend_env},
+                env={**os.environ, **backend_env},
                 text=True,
             )
             proc.stdin.write(json.dumps(raw) + "\n")
@@ -158,6 +337,10 @@ def run_http_server(
     server_name: str | None = None,
 ) -> int:
     """Start the HTTP/SSE gateway server."""
+    if not config.servers:
+        print("mcp-guard: no servers configured", file=sys.stderr)
+        return 1
+
     proxy = MCPProxy.from_config(config)
 
     # Add metrics tracking to proxy
@@ -183,21 +366,47 @@ def run_http_server(
 
     proxy.intercept = _counting_intercept
 
-    chosen = config.servers[0]
-    if server_name:
-        for s in config.servers:
-            if s.name == server_name:
-                chosen = s
-                break
+    # Build router from config.routes (v0.1.4)
+    if config.routes:
+        rules = []
+        for r in config.routes:
+            rules.append(RouteRule(
+                mode=r.get("mode", "default"),
+                target=r.get("target", config.servers[0].name),
+                tool_name=r.get("tool_name", ""),
+                method_prefix=r.get("method_prefix", ""),
+            ))
+        if not any(rule.mode == "default" for rule in rules):
+            rules.append(RouteRule(mode="default", target=config.servers[0].name))
+        router = MCPRouter(config.servers, RouteConfig(rules=rules))
+    elif len(config.servers) == 1:
+        # Legacy: no router, single server
+        router = None
+    elif server_name:
+        # Backwards-compat: --server flag
+        chosen = next((s for s in config.servers if s.name == server_name), config.servers[0])
+        router = MCPRouter(config.servers, RouteConfig(rules=[RouteRule(mode="default", target=chosen.name)]))
+    else:
+        # Multiple servers but no routes → default to first
+        router = MCPRouter(config.servers)
 
-    backend = [chosen.command, *chosen.args]
+    # Build OAuth2 provider if config requests it (v0.1.4)
+    oauth = None
+    if config.auth.mode == "oauth2":
+        from .oauth import OAuth2Provider
+        oauth = OAuth2Provider(
+            client_id=getattr(config.auth, "client_id", "mcp-agent"),
+            client_secret=getattr(config.auth, "client_secret", ""),
+            issuer=getattr(config.auth, "issuer", "mcp-guard"),
+        )
 
-    server = GuardHTTPServer((host, port), proxy, backend, chosen.env)
+    server = GuardHTTPServer((host, port), proxy, router, oauth)
 
     print(
-        f"mcp-guard v0.1.2 HTTP gateway on {host}:{port}\n"
+        f"mcp-guard v0.1.4 HTTP gateway on {host}:{port}\n"
         f"  auth:      {config.auth.mode}\n"
-        f"  backend:   {chosen.name} ({chosen.command})\n"
+        f"  servers:   {', '.join(s.name for s in config.servers)}\n"
+        f"  routes:    {len(config.routes) if config.routes else 'default-first'}\n"
         f"  endpoints: POST /rpc, GET /health, GET /metrics\n"
         f"  audit:     {config.policies.audit_log or 'disabled'}\n",
         file=sys.stderr,

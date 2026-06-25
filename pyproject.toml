@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bonanza-mcp-guard"
-version = "0.1.3"
+version = "0.1.4"
 description = "Production MCP gateway: JWT auth, rate limiting, spending controls, audit log. mcp-guard serve --config mcp-guard.yaml"
 readme = "README.md"
 license = { text = "Apache-2.0" }
