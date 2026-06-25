@@ -15,7 +15,7 @@ mcp-guard serve --config mcp-guard.yaml
 
 > **PyPI:** package [`bonanza-mcp-guard`](https://pypi.org/project/bonanza-mcp-guard/) (name `mcp-guard` was taken). CLI is still `mcp-guard`.
 
-<!-- Demo: add docs/demo.gif — record: mcp-guard scan && mcp-guard serve -c examples/minimal.yaml -->
+![Demo](docs/demo.gif)
 
 Sits in front of any MCP server over stdio. Zero required dependencies.
 
